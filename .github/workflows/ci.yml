@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore and Build
+        run: |
+          dotnet restore
+          dotnet build --no-restore -c Release
+      - name: Run unit tests
+        run: |
+          dotnet test --no-build -c Release --logger "console;verbosity=normal" -l "trx"
+
+  integration:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+      - name: Download ffmpeg
+        run: |
+          mkdir -p tools && cd tools
+          curl -sSL -o ffmpeg.zip "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          unzip -q ffmpeg.zip
+          echo "FFMPEG_DIR=$(pwd)/ffmpeg-*-essentials_build/bin" >> $GITHUB_ENV
+      - name: Set FFMPEG_PATH
+        run: echo "FFMPEG_PATH=${{ env.FFMPEG_DIR }}/ffmpeg.exe" >> $GITHUB_ENV
+      - name: Run integration tests
+        env:
+          FFMPEG_PATH: ${{ env.FFMPEG_PATH }}
+        run: |
+          dotnet test --no-build -c Release --filter "Category=Integration" --logger "console;verbosity=normal" -l "trx"
