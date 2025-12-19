@@ -1,0 +1,15 @@
+# Build outputs
+bin/
+obj/
+
+# Executables
+*.exe
+
+# Video outputs
+*.mp4
+
+# IDE / OS
+.vs/
+.vscode/
+Thumbs.db
+.DS_Store
