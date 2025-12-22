@@ -32,6 +32,7 @@ dotnet publish AlephTavCutVideoEditorApp/AlephTavCutVideoEditorApp.csproj -c Rel
 
 - ffmpeg is required for exports; either install ffmpeg on PATH or set its path in the UI.
 - For frame-accurate trimming, enable "Precise trimming (re-encode)"; this re-encodes segments using libx264 and aac.
+- To remove a cut: select an item in the list and click **Remove**, or enter `Start` and `End` and click **Remove** to target a specific range. You can also press the **Delete** key to remove the selected list item.
 
 ## Contribution
 

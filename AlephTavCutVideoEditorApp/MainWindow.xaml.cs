@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Win32;
 using System.Windows.Threading;
+using System.Windows.Input;
 
 namespace AlephTavCutVideoEditorApp
 {
@@ -95,10 +96,48 @@ namespace AlephTavCutVideoEditorApp
 
         private void BtnRemoveCut_Click(object sender, RoutedEventArgs e)
         {
+            // If the user has selected a cut in the list, remove that one.
             if (ListCuts.SelectedIndex >= 0)
             {
                 _cuts.RemoveAt(ListCuts.SelectedIndex);
+                NormalizeCuts();
                 RefreshCutsList();
+                return;
+            }
+
+            // Otherwise, try to remove a cut that matches the entered Start/End fields (convenience).
+            if (!string.IsNullOrWhiteSpace(TxtStart.Text) && !string.IsNullOrWhiteSpace(TxtEnd.Text))
+            {
+                try
+                {
+                    var s = ParseTimestamp(TxtStart.Text.Trim());
+                    var t = ParseTimestamp(TxtEnd.Text.Trim());
+                    // Remove exact matches first
+                    var removed = _cuts.RemoveAll(c => c.Start == s && c.End == t);
+                    // If none removed, remove any cut that overlaps the entered range (useful if normalized/merged)
+                    if (removed == 0)
+                    {
+                        removed = _cuts.RemoveAll(c => !(c.End <= s || c.Start >= t));
+                    }
+
+                    if (removed > 0)
+                    {
+                        NormalizeCuts();
+                        RefreshCutsList();
+                    }
+                    else
+                    {
+                        MessageBox.Show(this, "No matching cut found to remove. Select an item from the list or enter a matching range.", "Not found", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Couldn't parse times: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show(this, "Select a cut from the list or enter Start and End and then click Remove.", "No selection", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
@@ -106,6 +145,19 @@ namespace AlephTavCutVideoEditorApp
         {
             _cuts.Clear();
             RefreshCutsList();
+        }
+
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Delete)
+            {
+                // If the list has focus and an item is selected, remove it.
+                if (ListCuts.SelectedIndex >= 0)
+                {
+                    BtnRemoveCut_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                }
+            }
         }
 
         private void RefreshCutsList()
@@ -265,7 +317,23 @@ namespace AlephTavCutVideoEditorApp
                         else
                             ts = TimeSpan.FromSeconds(double.Parse(token, CultureInfo.InvariantCulture));
                         var pct = Math.Max(0.0, Math.Min(1.0, ts.TotalSeconds / expectedDurationSeconds.Value));
-                        try { progressCallback(pct); } catch { }
+                        try
+                        {
+                            // Marshal the progress callback to the UI thread to avoid cross-thread access
+                            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                            if (dispatcher != null && !dispatcher.CheckAccess())
+                            {
+                                dispatcher.BeginInvoke(new Action(() =>
+                                {
+                                    try { progressCallback(pct); } catch { }
+                                }));
+                            }
+                            else
+                            {
+                                try { progressCallback(pct); } catch { }
+                            }
+                        }
+                        catch { }
                     }
                 }
                 catch { /* ignore parse errors */ }
